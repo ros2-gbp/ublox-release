@@ -1,1 +1,1 @@
-{"base": "a981d4f", "parent": "debian/rolling/ublox_gps", "previous": "402dc4f", "trim": "", "trimbase": ""}
+{"base": "75de467", "parent": "debian/galactic/ublox_gps", "previous": "4f658a7", "trim": "", "trimbase": ""}
