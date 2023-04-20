@@ -1,0 +1,12 @@
+Source: ros-iron-ublox-gps
+Section: misc
+Priority: optional
+Maintainer: Gareth Cross <gcross.code@icloud.com>
+Build-Depends: debhelper (>= 9.0.0), libasio-dev, ros-iron-ament-cmake-ros, ros-iron-diagnostic-msgs, ros-iron-diagnostic-updater, ros-iron-geometry-msgs, ros-iron-rcl-interfaces, ros-iron-rclcpp, ros-iron-rclcpp-components, ros-iron-sensor-msgs, ros-iron-std-msgs, ros-iron-tf2, ros-iron-ublox-msgs, ros-iron-ublox-serialization, ros-iron-ros-workspace
+Homepage: http://ros.org/wiki/ublox
+Standards-Version: 3.9.2
+
+Package: ros-iron-ublox-gps
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libasio-dev, ros-iron-diagnostic-msgs, ros-iron-diagnostic-updater, ros-iron-geometry-msgs, ros-iron-rcl-interfaces, ros-iron-rclcpp, ros-iron-rclcpp-components, ros-iron-sensor-msgs, ros-iron-std-msgs, ros-iron-tf2, ros-iron-ublox-msgs, ros-iron-ublox-serialization, ros-iron-ros-workspace
+Description: Driver for u-blox GPS devices.
