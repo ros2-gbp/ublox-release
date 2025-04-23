@@ -1,0 +1,12 @@
+Source: ros-kilted-ublox-gps
+Section: misc
+Priority: optional
+Maintainer: Gareth Cross <gcross.code@icloud.com>
+Build-Depends: debhelper (>= 9.0.0), libasio-dev, ros-kilted-ament-cmake-ros, ros-kilted-diagnostic-msgs, ros-kilted-diagnostic-updater, ros-kilted-geometry-msgs, ros-kilted-rcl-interfaces, ros-kilted-rclcpp, ros-kilted-rclcpp-components, ros-kilted-sensor-msgs, ros-kilted-std-msgs, ros-kilted-tf2, ros-kilted-ublox-msgs, ros-kilted-ublox-serialization, ros-kilted-ros-workspace
+Homepage: http://ros.org/wiki/ublox
+Standards-Version: 3.9.2
+
+Package: ros-kilted-ublox-gps
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libasio-dev, ros-kilted-diagnostic-msgs, ros-kilted-diagnostic-updater, ros-kilted-geometry-msgs, ros-kilted-rcl-interfaces, ros-kilted-rclcpp, ros-kilted-rclcpp-components, ros-kilted-sensor-msgs, ros-kilted-std-msgs, ros-kilted-tf2, ros-kilted-ublox-msgs, ros-kilted-ublox-serialization, ros-kilted-ros-workspace
+Description: Driver for u-blox GPS devices.
