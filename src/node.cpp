@@ -52,8 +52,11 @@
 #include <ublox_msgs/msg/inf.hpp>
 #include <ublox_msgs/msg/mon_ver.hpp>
 #include <ublox_msgs/msg/nav_clock.hpp>
+#include <ublox_msgs/msg/nav_cov.hpp>
 #include <ublox_msgs/msg/nav_posecef.hpp>
 #include <ublox_msgs/msg/nav_status.hpp>
+
+#include <nmea_msgs/msg/sentence.hpp>
 
 #include <ublox_gps/adr_udr_product.hpp>
 #include <ublox_gps/fix_diagnostic.hpp>
@@ -190,6 +193,10 @@ UbloxNode::UbloxNode(const rclcpp::NodeOptions & options) : rclcpp::Node("ublox_
   initialize();
 }
 
+void UbloxNode::rtcmCallback(const rtcm_msgs::msg::Message::SharedPtr msg) {
+  gps_->sendRtcm(msg->message);
+}
+
 void UbloxNode::addFirmwareInterface() {
   int ublox_version;
   if (protocol_version_ < 14.0) {
@@ -212,23 +219,26 @@ void UbloxNode::addFirmwareInterface() {
 
 void UbloxNode::addProductInterface(const std::string & product_category,
                                     const std::string & ref_rov) {
-  if (product_category == "HPG" && ref_rov == "REF") {
+  if ((product_category == "HPG" || product_category == "HPS") && ref_rov == "REF") {
     components_.push_back(std::make_shared<HpgRefProduct>(nav_rate_, meas_rate_, updater_, rtcms_, this));
-  } else if (product_category == "HPG" && ref_rov == "ROV") {
+  } else if ((product_category == "HPG" || product_category == "HPS") && ref_rov == "ROV") {
     components_.push_back(std::make_shared<HpgRovProduct>(nav_rate_, updater_, this));
-  } else if (product_category == "HPG") {
+  } else if (product_category == "HPG" || product_category == "HPS") {
     components_.push_back(std::make_shared<HpPosRecProduct>(nav_rate_, meas_rate_, frame_id_, updater_, rtcms_, this));
   } else if (product_category == "TIM") {
     components_.push_back(std::make_shared<TimProduct>(frame_id_, updater_, this));
   } else if (product_category == "ADR" ||
              product_category == "UDR") {
-    components_.push_back(std::make_shared<AdrUdrProduct>(nav_rate_, meas_rate_, frame_id_, updater_, this));
+    components_.push_back(std::make_shared<AdrUdrProduct>(protocol_version_, nav_rate_, meas_rate_, frame_id_, updater_, this));
   } else if (product_category == "FTS") {
     components_.push_back(std::make_shared<FtsProduct>());
-  } else if (product_category == "SPG") {
+  } else if (product_category == "HPS") {
+    components_.push_back(std::make_shared<AdrUdrProduct>(protocol_version_, nav_rate_, meas_rate_, frame_id_, updater_, this));
+    components_.push_back(std::make_shared<HpgRovProduct>(nav_rate_, updater_, this));
+  } else {
     RCLCPP_WARN(this->get_logger(), "Product category %s %s from MonVER message not recognized %s",
                 product_category.c_str(), ref_rov.c_str(),
-                "options are HPG REF, HPG ROV, HPG #.#, TIM, ADR, UDR, FTS, SPG");
+                "options are HPG REF, HPG ROV, HPG #.#, TIM, ADR, UDR, FTS, HPS");
   }
 }
 
@@ -403,6 +413,7 @@ void UbloxNode::getRosParams() {
   this->declare_parameter("publish.nav.all", getRosBoolean(this, "publish.all"));
   this->declare_parameter("publish.nav.att", getRosBoolean(this, "publish.nav.all"));
   this->declare_parameter("publish.nav.clock", getRosBoolean(this, "publish.nav.all"));
+  this->declare_parameter("publish.nav.cov", getRosBoolean(this, "publish.nav.all"));
   this->declare_parameter("publish.nav.heading", getRosBoolean(this, "publish.nav.all"));
   this->declare_parameter("publish.nav.posecef", getRosBoolean(this, "publish.nav.all"));
   this->declare_parameter("publish.nav.posllh", getRosBoolean(this, "publish.nav.all"));
@@ -413,6 +424,8 @@ void UbloxNode::getRosParams() {
   this->declare_parameter("publish.nav.svin", getRosBoolean(this, "publish.nav.all"));
   this->declare_parameter("publish.nav.svinfo", getRosBoolean(this, "publish.nav.all"));
   this->declare_parameter("publish.nav.status", getRosBoolean(this, "publish.nav.all"));
+  this->declare_parameter("publish.nav.timegps", getRosBoolean(this, "publish.nav.all"));
+  this->declare_parameter("publish.nav.timeutc", getRosBoolean(this, "publish.nav.all"));
   this->declare_parameter("publish.nav.velned", getRosBoolean(this, "publish.nav.all"));
 
   this->declare_parameter("publish.rxm.all", getRosBoolean(this, "publish.all"));
@@ -431,6 +444,8 @@ void UbloxNode::getRosParams() {
   this->declare_parameter("publish.mon.hw", getRosBoolean(this, "publish.mon.all"));
 
   this->declare_parameter("publish.tim.tm2", false);
+
+  this->declare_parameter("publish.nmea", true);
 
   // INF parameters
   this->declare_parameter("inf.all", true);
@@ -465,8 +480,8 @@ void UbloxNode::getRosParams() {
   if (getRosBoolean(this, "publish.nav.posecef")) {
     nav_posecef_pub_ = this->create_publisher<ublox_msgs::msg::NavPOSECEF>("navposecef", 1);
   }
-  if (getRosBoolean(this, "publish.nav.clock")) {
-    nav_clock_pub_ = this->create_publisher<ublox_msgs::msg::NavCLOCK>("navclock", 1);
+  if (getRosBoolean(this, "publish.nav.cov")) {
+    nav_cov_pub_ = this->create_publisher<ublox_msgs::msg::NavCOV>("navcov", 1);
   }
   if (getRosBoolean(this, "publish.nav.clock")) {
     nav_clock_pub_ = this->create_publisher<ublox_msgs::msg::NavCLOCK>("navclock", 1);
@@ -480,6 +495,13 @@ void UbloxNode::getRosParams() {
   if (getRosBoolean(this, "publish.aid.hui")) {
     aid_hui_pub_ = this->create_publisher<ublox_msgs::msg::AidHUI>("aidhui", 1);
   }
+  if (getRosBoolean(this, "publish.nmea")) {
+    // Larger queue depth to handle all NMEA strings being published consecutively
+    nmea_pub_ = this->create_publisher<nmea_msgs::msg::Sentence>("nmea", 20);
+  }
+
+  // Create subscriber for RTCM correction data to enable RTK
+  this->subscription_ = this->create_subscription<rtcm_msgs::msg::Message>("/rtcm", 10, std::bind(&UbloxNode::rtcmCallback, this, std::placeholders::_1));
 }
 
 void UbloxNode::keepAlive() {
@@ -537,6 +559,11 @@ void UbloxNode::subscribe() {
                                           1);
   }
 
+  if (getRosBoolean(this, "publish.nav.cov")) {
+    gps_->subscribe<ublox_msgs::msg::NavCOV>([this](const ublox_msgs::msg::NavCOV &m) { nav_cov_pub_->publish(m); },
+                                          1);
+  }
+
   // INF messages
   if (getRosBoolean(this, "inf.debug")) {
     gps_->subscribeId<ublox_msgs::msg::Inf>(
@@ -587,6 +614,16 @@ void UbloxNode::subscribe() {
   if (getRosBoolean(this, "publish.aid.hui")) {
     gps_->subscribe<ublox_msgs::msg::AidHUI>([this](const ublox_msgs::msg::AidHUI &m) { aid_hui_pub_->publish(m); },
                                         1);
+  }
+
+  if (getRosBoolean(this, "publish.nmea")) {
+    gps_->subscribe_nmea([this](const std::string &sentence) {
+      nmea_msgs::msg::Sentence m;
+      m.header.stamp = this->now();
+      m.header.frame_id = frame_id_;
+      m.sentence = sentence;
+      nmea_pub_->publish(m);
+    });
   }
 
   for (const std::shared_ptr<ComponentInterface> & component : components_) {
@@ -666,6 +703,23 @@ void UbloxNode::processMonVer() {
             }
             continue;
           }
+          // u-blox F9 modules support additional positioning signals
+          else if (strs[0] == "MOD")
+          {
+            std::vector<std::string> moduleField;
+            moduleField = stringSplit(strs[1], "-");
+            if (moduleField.size() > 1)
+            {
+              if (moduleField[1].substr(0,2) == "F9")
+              {
+                gnss_->add("GPS_L2C");
+                gnss_->add("GAL_E5B");
+                gnss_->add("BDS_B2");
+                gnss_->add("QZSS_L2C");
+                gnss_->add("GLO_L2");
+              }
+            }
+          }
         }
       }
       // Last 1-2 lines contain supported GNSS
@@ -720,7 +774,7 @@ bool UbloxNode::configureUblox() {
                                   " SBAS.");
         }
       }
-      if (!gps_->setPpp(getRosBoolean(this, "enable_ppp"))) {
+      if (!gps_->setPpp(getRosBoolean(this, "enable_ppp"), protocol_version_)) {
         throw std::runtime_error(std::string("Failed to ") +
                                 (getRosBoolean(this, "enable_ppp") ? "enable" : "disable")
                                 + " PPP.");
@@ -755,7 +809,7 @@ bool UbloxNode::configureUblox() {
     }
   } catch (const std::exception& e) {
     RCLCPP_FATAL(this->get_logger(), "Error configuring u-blox: %s", e.what());
-    return false;
+    throw std::runtime_error("Failed to configure u-blox receiver.");
   }
   return true;
 }
