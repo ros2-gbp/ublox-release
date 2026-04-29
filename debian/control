@@ -1,0 +1,12 @@
+Source: ros-lyrical-ublox
+Section: misc
+Priority: optional
+Maintainer: Veronica Lane <vmlane@alum.mit.edu>
+Build-Depends: debhelper (>= 9.0.0), ros-lyrical-ament-cmake, ros-lyrical-ros-workspace
+Homepage: http://wiki.ros.org/ublox
+Standards-Version: 3.9.2
+
+Package: ros-lyrical-ublox
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, ros-lyrical-ublox-gps, ros-lyrical-ublox-msgs, ros-lyrical-ublox-serialization, ros-lyrical-ros-workspace
+Description: Provides a ublox_gps node for u-blox GPS receivers, messages, and serialization packages for the binary UBX protocol.
